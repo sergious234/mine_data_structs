@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.9](https://github.com/sergious234/mine_data_structs/compare/v1.0.8...v1.0.9) - 2025-12-14
+
+### Other
+
+- serde as feature
+
 ## [1.0.7](https://github.com/sergious234/uranium-rs/compare/mine_data_structs-v1.0.6...mine_data_structs-v1.0.7) - 2025-08-01
 
 ### Other
