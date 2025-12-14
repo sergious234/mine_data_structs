@@ -20,14 +20,17 @@
 //! For info about minecraft versions (snapshots, releases, lastest versions...)
 //! go look [MinecraftVersions].
 
-use std::io::Write;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
 };
 
 use indexmap::IndexMap;
+
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use std::io::Write;
 
 const BASE: &str = "https://resources.download.minecraft.net/";
 
@@ -42,7 +45,8 @@ const BASE: &str = "https://resources.download.minecraft.net/";
 /// This is used in [Resources].
 ///
 /// From piston-meta.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
 pub struct ObjectData {
     pub hash: String,
     pub size: usize,
@@ -70,7 +74,8 @@ impl ObjectData {
 /// reasons I'll keep both structs.
 ///
 /// Maybe I should just make an alias right... ? PR !!!
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
 pub struct DownloadData {
     pub sha1: String,
     pub size: usize,
@@ -99,8 +104,8 @@ pub struct DownloadData {
 ///    }
 /// }
 /// ```
-
-#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct Resources {
     pub objects: IndexMap<String, ObjectData>,
 }
@@ -124,14 +129,16 @@ pub struct Resources {
 ///  "releaseTime": "2024-09-25T13:08:41+00:00"
 /// }
 /// ```
-#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct MinecraftVersion {
     pub id: String,
-    #[serde(rename = "type")]
+    #[cfg_attr(feature = "serde", serde(rename = "type"))]
+    //#[serde(rename = "type")]
     pub instance_type: String,
     pub url: String,
     pub time: String,
-    #[serde(rename = "releaseTime")]
+    #[cfg_attr(feature = "serde", serde(rename = "releaseTime"))]
     pub release_time: String,
 }
 
@@ -140,7 +147,8 @@ pub struct MinecraftVersion {
 /// This struct represents the whole `JSON` found in:
 ///
 /// "<https://launchermeta.mojang.com/mc/game/version_manifest.json>"
-#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct MinecraftVersions {
     pub latest: Latest,
     pub versions: Box<[MinecraftVersion]>,
@@ -194,7 +202,8 @@ impl MinecraftVersions {
 /// Both: release and snapshot latest versions of minecraft.
 ///
 /// From launchermeta.mojang.com
-#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct Latest {
     pub release: String,
     pub snapshot: String,
@@ -225,7 +234,8 @@ pub struct Latest {
 /// ]
 /// }
 /// ```
-#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct Library {
     pub downloads: Option<LibraryDownloads>,
     pub name: String,
@@ -236,33 +246,19 @@ impl Library {
     pub fn get_os(&self) -> Option<Os> {
         self.rules
             .as_ref()
-            .and_then(|r| {
-                r.iter()
-                    .find(|x| x.os.is_some())
-                    .unwrap()
-                    .os
-            })
+            .and_then(|r| r.iter().find(|x| x.os.is_some()).unwrap().os)
     }
 
     pub fn get_url(&self) -> &str {
-        self.downloads
-            .as_ref()
-            .unwrap()
-            .artifact
-            .url
-            .as_str()
+        self.downloads.as_ref().unwrap().artifact.url.as_str()
     }
 
     pub fn get_rel_path(&self) -> Option<&Path> {
-        self.downloads
-            .as_ref()
-            .map(|ld| ld.artifact.path.as_path())
+        self.downloads.as_ref().map(|ld| ld.artifact.path.as_path())
     }
 
     pub fn get_hash(&self) -> Option<&str> {
-        self.downloads
-            .as_ref()
-            .map(|ld| ld.artifact.sha1.as_str())
+        self.downloads.as_ref().map(|ld| ld.artifact.sha1.as_str())
     }
 }
 
@@ -279,12 +275,13 @@ impl Library {
 /// It has an URL to a JSON which contains the assets of the version.
 ///
 /// Look [Resources]
-#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct AssetIndex {
     pub id: String,
     pub sha1: String,
     pub size: usize,
-    #[serde(rename = "totalSize")]
+    #[cfg_attr(feature = "serde", serde(rename = "totalSize"))]
     pub total_size: u128,
     pub url: String,
 }
@@ -297,20 +294,24 @@ pub struct AssetIndex {
 */
 
 /// A profile form `launcher_profiles.json` in minecraft root dir.
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(rename_all = "camelCase")
+)]
+#[derive(Debug, Clone)]
 pub struct Profile {
-    #[serde(default = "Default::default")]
+    #[cfg_attr(feature = "serde", serde(default = "Default::default"))]
     pub icon: String,
     pub last_version_id: String,
     pub name: String,
 
     pub game_dir: Option<PathBuf>,
 
-    #[serde(rename = "type")]
+    #[cfg_attr(feature = "serde", serde(rename = "type"))]
     pub profile_type: String,
 
-    #[serde(default = "Default::default")]
+    #[cfg_attr(feature = "serde", serde(default = "Default::default"))]
     pub java_args: String,
 }
 
@@ -338,15 +339,14 @@ impl Profile {
     /// This method returns the ID of the profile in case there is one. Also in
     /// case the profile inherits the ID from other version then it will
     /// return it.
+    #[cfg(feature = "serde")]
     pub fn get_id(&self) -> Option<String> {
         let minecraft_path = self
             .game_dir
             .as_ref()
             .map(|x| {
-                x.ancestors().find(|e| {
-                    e.file_name()
-                        .is_some_and(|f| f == ".minecraft")
-                })
+                x.ancestors()
+                    .find(|e| e.file_name().is_some_and(|f| f == ".minecraft"))
             })??
             .to_path_buf();
 
@@ -360,16 +360,17 @@ impl Profile {
 
         let r: Root = serde_json::from_reader(file).ok()?;
 
-        Some(
-            r.inherits_from
-                .unwrap_or(r.id.clone()),
-        )
+        Some(r.inherits_from.unwrap_or(r.id.clone()))
     }
 }
 
 /// Settings from `launcher_profiles.json`
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    feature = "serde",
+    derive(Deserialize, Serialize),
+    serde(rename_all = "camelCase")
+)]
+#[derive(Debug, Clone)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Settings {
     pub crash_assistance: bool,
@@ -436,7 +437,8 @@ impl Default for Settings {
 ///
 /// * [`Profile`] - Represents the individual profile data.
 /// * [`Settings`] - Represents the global launcher settings.
-#[derive(Debug, Default, Deserialize, Serialize, Clone)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[derive(Debug, Default, Clone)]
 pub struct ProfilesJson {
     pub profiles: HashMap<String, Profile>,
     pub settings: Settings,
@@ -457,6 +459,7 @@ impl ProfilesJson {
     /// # Panic
     ///
     /// This function won't panic.
+    #[cfg(feature="serde")]
     pub fn read_json_from<I: AsRef<Path>>(path: I) -> Result<ProfilesJson, std::io::Error> {
         let content = std::io::read_to_string(std::fs::File::open(path)?)?;
         let parsed =
@@ -488,6 +491,7 @@ impl ProfilesJson {
     }
 
     /// Saves the profiles into a file.
+    #[cfg(feature="serde")]
     pub fn save(&self) -> std::io::Result<()> {
         let mut file = std::fs::OpenOptions::new()
             .write(true)
@@ -569,14 +573,14 @@ impl ProfilesJson {
 ///
 ///
 /// I KNOW TIME AND RELEASETIME FIELDS ARE MISSING, NEED THEM ? PR !!!!
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize),serde(rename_all = "camelCase") )]
+#[derive( Debug)]
 pub struct Root {
     pub arguments: Arguments,
 
     pub asset_index: AssetIndex,
 
-    #[serde(default = "Default::default")]
+    #[cfg_attr(feature="serde", serde(default = "Default::default"))]
     pub assets: String,
 
     /// .minecraft/versions/version/version.jar
@@ -588,10 +592,10 @@ pub struct Root {
     pub libraries: Box<[Library]>,
     pub inherits_from: Option<String>,
 
-    #[serde(default = "Default::default")]
+    #[cfg_attr(feature="serde", serde(default = "Default::default"))]
     pub main_class: String,
 
-    #[serde(rename = "type")]
+    #[cfg_attr(feature="serde", serde(rename = "type"))]
     pub version_type: String,
 }
 
@@ -612,10 +616,11 @@ impl Root {
 /// This may surprise you but this structs represent the *JAVA VERSION*
 ///
 /// component is the runtime, i.e: "java-runtime-delta", "java-runtime-alpha"...
-#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct JavaVersion {
     pub component: String,
-    #[serde(rename = "majorVersion")]
+    #[cfg_attr(feature="serde", serde(rename = "majorVersion"))]
     pub major_version: usize,
 }
 
@@ -624,7 +629,8 @@ pub struct JavaVersion {
 /// *IMPORTANT*: jvm args are not supported yet!
 ///
 /// Want them right now ? PR !!!
-#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct Arguments {
     pub game: Box<[GameArgument]>,
     //jvm: HashMap<String, String>,
@@ -639,8 +645,8 @@ pub struct Arguments {
 ///  Examples of `Object` arguments are "--demo", "--width" or "--height".
 ///  Examples of `String` arguments are "--gameDir", "--version" or
 /// "--username".
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize), serde(untagged))]
+#[derive(Debug)]
 pub enum GameArgument {
     String(String),
     Object {
@@ -656,8 +662,8 @@ pub enum GameArgument {
 ///  - Multiple (Multiple String)
 ///
 /// From piston-meta
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize), serde(untagged))]
+#[derive(Debug)]
 pub enum ValueType {
     // Just like me
     Single(String),
@@ -667,21 +673,22 @@ pub enum ValueType {
 /// A Rule for whatever Mojang/Microsft thinks its neccesary.
 ///
 /// Used in libraries or args from piston-meta.
-#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct Rule {
     pub action: String,
     pub os: Option<Os>,
 }
 
 /// Enum which contains the differents Osssssssssss.
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
-#[serde(tag = "name")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(tag = "name"))]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Os {
-    #[serde(rename = "linux")]
+    #[cfg_attr(feature = "serde", serde(rename = "linux"))]
     Linux,
-    #[serde(rename = "windows")]
+    #[cfg_attr(feature = "serde", serde(rename = "windows"))]
     Windows,
-    #[serde(other)]
+    #[cfg_attr(feature = "serde", serde(other))]
     Other,
 }
 
@@ -696,12 +703,14 @@ pub enum Os {
 /// ```
 ///
 ///This is the `downloads` field of [`Library`] struct
-#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct LibraryDownloads {
     pub artifact: Artifact,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct Artifact {
     pub path: PathBuf,
     pub sha1: String,
@@ -787,14 +796,15 @@ pub type FileRelPath = PathBuf;
 ///
 /// Right now only linux, mac-os and windows-x64 are supported and the field
 /// gamecore is ignored/missing.
-#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct Runtimes {
     pub linux: Runtime,
-    #[serde(rename = "windows-x64")]
+    #[cfg_attr(feature = "serde", serde(rename = "windows-x64"))]
     pub windowsx64: Runtime,
-    #[serde(rename = "mac-os")]
+    #[cfg_attr(feature = "serde", serde(rename = "mac-os"))]
     pub macos: Runtime,
-    #[serde(rename = "mac-os-arm64")]
+    #[cfg_attr(feature = "serde", serde(rename = "mac-os-arm64"))]
     pub macosarm: Runtime,
 }
 
@@ -805,7 +815,8 @@ pub struct Runtimes {
 ///  - version
 ///
 /// Need them ? PR !!
-#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct RuntimeData {
     manifest: Manifest,
 }
@@ -825,7 +836,8 @@ impl RuntimeData {
 }
 
 /// Hash, size and url of the runtime files.
-#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct Manifest {
     pub sha1: String,
     pub size: usize,
@@ -836,7 +848,8 @@ pub struct Manifest {
 /// This is the response fetched from piston-meta when asking
 /// for runtimes. This response correspond to the url
 /// of the [Manifest] inside [RuntimeData]
-#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct RuntimeFiles {
     pub files: HashMap<FileRelPath, RuntimeFile>,
 }
@@ -848,12 +861,13 @@ pub struct RuntimeFiles {
 /// The `downloads` String should be:
 /// - raw
 /// - lmza
-#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct RuntimeFile {
-    #[serde(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
     pub downloads: HashMap<String, Manifest>,
-    #[serde(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
     pub executable: bool,
-    #[serde(rename = "type")]
+    #[cfg_attr(feature = "serde", serde(rename = "type"))]
     pub file_type: String,
 }

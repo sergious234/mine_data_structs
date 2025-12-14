@@ -12,6 +12,10 @@ repository = "https://github.com/sergious234/mine_data_structs"
 
 [dependencies]
 dirs = "5.0.1"
-serde = { version = "1.0.183", features = ["derive"] }
-serde_json = { version = "1.0.139", default-features = false, features = ["alloc", "std"] }
 indexmap = {version="2.10.0", features=["serde", "rayon"]}
+serde = { version = "^1", features = ["derive"], optional=true }
+serde_json = { version = "^1", default-features = false, features = ["alloc", "std"], optional=true}
+
+[features]
+default = []
+serde = ["dep:serde", "dep:serde_json"]

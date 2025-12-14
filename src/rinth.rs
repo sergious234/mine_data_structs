@@ -15,11 +15,12 @@
 // This looks like an enum right ?
 
 use std::collections::HashMap;
-use std::path::Path;
-use std::{fs::read_to_string, path::PathBuf};
+use std::path::{Path, PathBuf};
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
+#[cfg(feature = "serde")]
+use std::fs::read_to_string;
 // ===================
 // |Projects section |
 // ===================
@@ -53,7 +54,8 @@ use serde::{Deserialize, Serialize};
 /// <https://github.com/modrinth/code/blob/b9d90aa6356c88c8d661c04ab84194cf08ea0198/apps/labrinth/src/models/v3/projects.rs>
 ///
 /// Facets, filters and versions seems to be "deprecated" in V3 ??
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
 pub struct SearchProjects {
     pub hits: Box<[Hit]>,
     pub offset: u32,
@@ -80,7 +82,8 @@ impl SearchProjects {
 /// Want them ? PR !!
 /// - `thread_id`
 /// - `monetization_status`
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
 pub struct Hit {
     /// The slug of a project, used for vanity URLs.
     /// Regex: ^[\w!@$()`.+,"\-']{3,64}$
@@ -147,7 +150,8 @@ pub enum Attributes {
 /// - `gallery`
 ///
 /// Want any of them ? PR !!!
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
 pub struct RinthProject {
     /// The slug of a project, used for vanity URLs.
     /// Regex: ^[\w!@$()`.+,"\-']{3,64}$
@@ -271,7 +275,8 @@ pub struct Dependencies {
 ///
 /// # More info
 /// <https://github.com/modrinth/code/blob/main/apps/labrinth/src/models/v2/projects.rs>
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
 pub struct DependencyInfo {
     pub name: String,
     pub version_number: String,
@@ -304,7 +309,8 @@ pub struct DependencyInfo {
 /// optional to the version's functionality
 ///
 /// Go look [`DependencyInfo`] for more information, this struct is used there.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Dependency {
     pub version_id: Option<String>,
     pub project_id: Option<String>,
@@ -318,7 +324,8 @@ pub struct Dependency {
 /// the original repo: <https://github.com/modrinth/code/blob/main/apps/labrinth/src/models/v3/projects.rs>
 ///
 /// Go look [`DependencyInfo`] for more information, this struct is used there.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DependencyFiles {
     pub hashes: std::collections::HashMap<String, String>,
     pub url: String,
@@ -414,7 +421,8 @@ pub type DependencyInfosH = HashMap<String, DependencyInfo>;
 
 /// `RinthProject` pretends to be the response for:
 /// `https://api.modrinth.com/v2/version/{version id}`
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
 pub struct RinthVersion {
     pub name: String,
     pub version_number: String,
@@ -453,9 +461,7 @@ impl RinthVersion {
     }
 
     pub fn is_fabric(&self) -> bool {
-        self.loaders
-            .iter()
-            .any(|l| l == "fabric")
+        self.loaders.iter().any(|l| l == "fabric")
     }
 
     pub fn has_dependencies(&self) -> bool {
@@ -469,7 +475,8 @@ impl RinthVersion {
 pub type RinthVersions = Vec<RinthVersion>;
 
 /// Simple struct for representing the "hashes" object.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
 pub struct Hashes {
     pub sha512: String,
     pub sha1: String,
@@ -495,7 +502,8 @@ pub struct Hashes {
 ///   }
 /// ]
 /// ```
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
 pub struct RinthFile {
     pub hashes: Hashes,
     pub url: String,
@@ -508,7 +516,8 @@ pub struct RinthFile {
 /// to the Modrinth's API
 pub type RinthCategories = Vec<Category>;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
 pub struct Category {
     pub icon: String,
     pub name: String,
@@ -538,12 +547,13 @@ pub struct Category {
 ///         ...
 ///     }
 /// }
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
 pub struct RinthModpack {
-    #[serde(rename = "formatVersion")]
+    #[cfg_attr(feature = "serde", serde(rename = "formatVersion"))]
     pub format_version: usize,
     pub game: String,
-    #[serde(rename = "versionId")]
+    #[cfg_attr(feature = "serde", serde(rename = "versionId"))]
     pub version_id: String,
     pub name: PathBuf,
     pub files: Vec<RinthMdFiles>,
@@ -554,11 +564,7 @@ impl RinthModpack {
         RinthModpack::default()
     }
 
-    pub fn new_with(
-        version_id: String,
-        name: PathBuf,
-        files: Vec<RinthMdFiles>,
-    ) -> Self {
+    pub fn new_with(version_id: String, name: PathBuf, files: Vec<RinthMdFiles>) -> Self {
         Self {
             format_version: 1,
             game: "minecraft".to_string(),
@@ -577,9 +583,7 @@ impl RinthModpack {
     }
 
     pub fn get_name(&self) -> String {
-        self.name
-            .display()
-            .to_string()
+        self.name.display().to_string()
     }
 
     pub fn get_files(&self) -> &Vec<RinthMdFiles> {
@@ -590,6 +594,7 @@ impl RinthModpack {
         self.files.push(new_mod);
     }
 
+    #[cfg(feature = "serde")]
     pub fn write_mod_pack_with_name(&self) -> std::io::Result<()> {
         let j = serde_json::to_string_pretty(self)?;
         std::fs::write("modrinth.index.json", j)?;
@@ -629,13 +634,13 @@ impl std::default::Default for RinthModpack {
 ///     "fileSize": 2791149
 /// }
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+#[derive(Debug, Clone)]
 pub struct RinthMdFiles {
-    path: PathBuf,
-    hashes: Hashes,
-    downloads: Vec<String>,
-    #[serde(rename = "fileSize")]
-    file_size: usize,
+    pub path: PathBuf,
+    pub hashes: Hashes,
+    pub downloads: Vec<String>,
+    pub file_size: usize,
 }
 
 impl From<RinthVersion> for RinthMdFiles {
@@ -643,9 +648,7 @@ impl From<RinthVersion> for RinthMdFiles {
         RinthMdFiles {
             path: ("mods/".to_owned() + version.get_file_name()).into(),
             hashes: version.get_hashes().clone(),
-            downloads: vec![version
-                .get_file_url()
-                .to_string()],
+            downloads: vec![version.get_file_url().to_string()],
             file_size: version.get_size(),
         }
     }
@@ -655,12 +658,8 @@ impl From<RinthVersionFile> for RinthMdFiles {
     fn from(version: RinthVersionFile) -> Self {
         Self {
             path: ("mods/".to_owned() + &version.name).into(),
-            hashes: version.files[0]
-                .hashes
-                .clone(),
-            downloads: vec![version.files[0]
-                .url
-                .to_string()],
+            hashes: version.files[0].hashes.clone(),
+            downloads: vec![version.files[0].url.to_string()],
             file_size: version.files[0].size,
         }
     }
@@ -681,10 +680,7 @@ impl RinthMdFiles {
 
         for download_link in &self.downloads {
             if download_link.contains("modrinth") {
-                return download_link
-                    .split("data/")
-                    .nth(1)
-                    .map(|f| &f[0..8]);
+                return download_link.split("data/").nth(1).map(|f| &f[0..8]);
             }
         }
         None
@@ -692,11 +688,7 @@ impl RinthMdFiles {
 
     pub fn get_name(&self) -> &str {
         // Oh god, I hate Rust strings.
-        self.path
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap_or_default()
+        self.path.file_name().unwrap().to_str().unwrap_or_default()
     }
 
     pub fn get_path(&self) -> &Path {
@@ -732,7 +724,8 @@ impl RinthMdFiles {
 ///   `"archived"`).
 /// - `requested_status`: The requested status of the version.
 /// - `changelog_url`: A deprecated link to the changelog, now always null.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
 pub struct RinthVersionFile {
     pub name: String,
     pub version_number: String,
@@ -747,10 +740,11 @@ pub struct RinthVersionFile {
     pub downloads: u64,
     pub files: Vec<RinthFile>,
 
-    #[serde(default = "Default::default")]
+    #[cfg_attr(feature = "serde", serde(default = "Default::default"))]
     pub dependency: Vec<Dependency>,
 }
 
+#[cfg(feature = "serde")]
 pub fn load_rinth_pack<I: AsRef<Path>>(pack_path: I) -> Option<RinthModpack> {
     read_to_string(&pack_path)
         .map(|s| serde_json::from_str(&s).ok())

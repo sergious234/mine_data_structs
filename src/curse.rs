@@ -1,16 +1,18 @@
-use std::fs::read_to_string;
 use std::path::{Path, PathBuf};
 
+#[cfg(feature="serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature="serde")]
+use std::fs::read_to_string;
+#[cfg(feature="serde")]
 use serde_json::Error;
 
 // Modpacks
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[cfg_attr(feature="serde", derive(Deserialize, Serialize), serde(rename_all = "camelCase"))]
+#[derive(Debug, Clone)]
 pub struct CursePackFiles {
-    #[serde(rename = "projectID")]
     project_id: usize,
-    #[serde(rename = "fileID")]
     file_id: usize,
 }
 
@@ -24,7 +26,8 @@ impl CursePackFiles {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[cfg_attr(feature="serde", derive(Deserialize, Serialize))]
+#[derive(Debug, Clone)]
 pub struct CursePack {
     pub name: String,
     pub author: String,
@@ -37,11 +40,13 @@ impl CursePack {
     }
 }
 
+#[cfg(feature="serde")]
 fn deserializ_pack(path: &str) -> Result<CursePack, Error> {
     let aux = read_to_string(path).unwrap();
     serde_json::from_str(&aux)
 }
 
+#[cfg(feature="serde")]
 pub fn load_curse_pack(pack_path: &str) -> Option<CursePack> {
     match read_to_string(pack_path) {
         Ok(_) => {}
@@ -62,35 +67,28 @@ pub fn load_curse_pack(pack_path: &str) -> Option<CursePack> {
 
 // Mods
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
+#[cfg_attr(feature="serde", derive(Deserialize, Serialize), serde(rename_all = "camelCase"))]
+#[derive(Clone, Debug)]
 /// This struct only contains data about the mod logo.
 pub struct Logo {
-    id: usize,
-    #[serde(rename = "modId")]
-    mod_id: usize,
-    #[serde(rename = "thumbnailUrl")]
-    thumbnail_url: String,
-    url: String,
+    pub id: usize,
+    pub mod_id: usize,
+    pub thumbnail_url: String,
+    pub url: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[cfg_attr(feature="serde", derive(Deserialize, Serialize), serde(rename_all = "camelCase"))]
+#[derive(Clone, Debug)]
 /// This struct contains the data about the specific file of a mod
 pub struct CurseFile {
-    id: usize,
-    #[serde(rename = "gameId")]
-    game_id: Option<usize>,
-    #[serde(rename = "modId")]
-    mod_id: usize,
-    #[serde(rename = "displayName")]
-    display_name: String,
-    #[serde(rename = "fileName")]
-    file_name: PathBuf,
-    #[serde(rename = "downloadUrl")]
-    download_url: Option<String>,
-    #[serde(rename = "fileLength")]
-    file_length: usize,
-    #[serde(rename = "gameVersions")]
-    game_versions: Vec<String>,
+    pub id: usize,
+    pub game_id: Option<usize>,
+    pub mod_id: usize,
+    pub display_name: String,
+    pub file_name: PathBuf,
+    pub download_url: Option<String>,
+    pub file_length: usize,
+    pub game_versions: Vec<String>,
 }
 
 impl CurseFile {
@@ -126,8 +124,9 @@ impl CurseFile {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct FingerPrintInfo {
+#[cfg_attr(feature="serde", derive(Deserialize, Serialize))]
+#[derive(Debug, Clone)]
+pub struct FingerPrintInfo {
     pub id: usize,
     pub file: CurseFile,
 }
@@ -141,9 +140,9 @@ struct FingerPrintInfo {
 ///     ]
 /// }
 /// ```
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[cfg_attr(feature="serde", derive(Deserialize, Serialize), serde(rename_all = "camelCase"))]
+#[derive(Clone, Debug)]
 pub struct CurseFingerPrint {
-    #[serde(rename = "exactMatches")]
     exact_matches: Vec<FingerPrintInfo>,
 }
 
@@ -154,23 +153,22 @@ impl CurseFingerPrint {
 }
 
 /// This struct contains the data about a single version of a mod
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[cfg_attr(feature="serde", derive(Deserialize, Serialize), serde(rename_all = "camelCase"))]
+#[derive(Clone, Debug)]
 pub struct CurseVersion {
-    id: usize,
-    #[serde(rename = "gameId")]
-    game_id: usize,
-    name: String,
-    slug: String,
-    #[serde(rename = "downloadCount")]
-    download_count: usize,
-    #[serde(rename = "latestFiles")]
-    latest_files: Vec<CurseFile>,
+    pub id: usize,
+    pub game_id: usize,
+    pub name: String,
+    pub slug: String,
+    pub download_count: usize,
+    pub latest_files: Vec<CurseFile>,
 }
 
 /// This struct contains the data about the multiple versions of a mod
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[cfg_attr(feature="serde", derive(Deserialize, Serialize))]
+#[derive(Clone, Debug)]
 pub struct CurseVersions {
-    data: Vec<CurseVersion>,
+    pub data: Vec<CurseVersion>,
 }
 
 /// Because the standard response from Curse API is:
@@ -178,6 +176,7 @@ pub struct CurseVersions {
 ///     * fields of other struct *
 /// }
 /// We need this struct.
+#[cfg(feature="serde")]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CurseResponse<T: Serialize> {
     pub data: T,
