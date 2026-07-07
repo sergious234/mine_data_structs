@@ -262,14 +262,6 @@ impl Library {
     }
 }
 
-/*
-
-
-    ASSETS INDEX DATA
-
-
-*/
-
 /// This struct represent *AssetIndex* field from piston-meta versions.
 ///
 /// It has an URL to a JSON which contains the assets of the version.
@@ -285,13 +277,6 @@ pub struct AssetIndex {
     pub total_size: u128,
     pub url: String,
 }
-
-/*
-
-    Minecraft launcher_profiles.json
-
-
-*/
 
 /// A profile form `launcher_profiles.json` in minecraft root dir.
 #[cfg_attr(
@@ -459,7 +444,7 @@ impl ProfilesJson {
     /// # Panic
     ///
     /// This function won't panic.
-    #[cfg(feature="serde")]
+    #[cfg(feature = "serde")]
     pub fn read_json_from<I: AsRef<Path>>(path: I) -> Result<ProfilesJson, std::io::Error> {
         let content = std::io::read_to_string(std::fs::File::open(path)?)?;
         let parsed =
@@ -491,7 +476,7 @@ impl ProfilesJson {
     }
 
     /// Saves the profiles into a file.
-    #[cfg(feature="serde")]
+    #[cfg(feature = "serde")]
     pub fn save(&self) -> std::io::Result<()> {
         let mut file = std::fs::OpenOptions::new()
             .write(true)
@@ -573,14 +558,18 @@ impl ProfilesJson {
 ///
 ///
 /// I KNOW TIME AND RELEASETIME FIELDS ARE MISSING, NEED THEM ? PR !!!!
-#[cfg_attr(feature="serde", derive(Serialize, Deserialize),serde(rename_all = "camelCase") )]
-#[derive( Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(rename_all = "camelCase")
+)]
+#[derive(Debug)]
 pub struct Root {
     pub arguments: Arguments,
 
     pub asset_index: AssetIndex,
 
-    #[cfg_attr(feature="serde", serde(default = "Default::default"))]
+    #[cfg_attr(feature = "serde", serde(default = "Default::default"))]
     pub assets: String,
 
     /// .minecraft/versions/version/version.jar
@@ -592,10 +581,10 @@ pub struct Root {
     pub libraries: Box<[Library]>,
     pub inherits_from: Option<String>,
 
-    #[cfg_attr(feature="serde", serde(default = "Default::default"))]
+    #[cfg_attr(feature = "serde", serde(default = "Default::default"))]
     pub main_class: String,
 
-    #[cfg_attr(feature="serde", serde(rename = "type"))]
+    #[cfg_attr(feature = "serde", serde(rename = "type"))]
     pub version_type: String,
 }
 
@@ -616,11 +605,11 @@ impl Root {
 /// This may surprise you but this structs represent the *JAVA VERSION*
 ///
 /// component is the runtime, i.e: "java-runtime-delta", "java-runtime-alpha"...
-#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
 pub struct JavaVersion {
     pub component: String,
-    #[cfg_attr(feature="serde", serde(rename = "majorVersion"))]
+    #[cfg_attr(feature = "serde", serde(rename = "majorVersion"))]
     pub major_version: usize,
 }
 
@@ -629,11 +618,11 @@ pub struct JavaVersion {
 /// *IMPORTANT*: jvm args are not supported yet!
 ///
 /// Want them right now ? PR !!!
-#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug)]
 pub struct Arguments {
     pub game: Box<[GameArgument]>,
-    //jvm: HashMap<String, String>,
+    jvm: Box<[GameArgument]>,
 }
 
 /// This enum represent the 2 kinds of arguments that appears in piston-meta.
@@ -645,7 +634,7 @@ pub struct Arguments {
 ///  Examples of `Object` arguments are "--demo", "--width" or "--height".
 ///  Examples of `String` arguments are "--gameDir", "--version" or
 /// "--username".
-#[cfg_attr(feature="serde", derive(Serialize, Deserialize), serde(untagged))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(untagged))]
 #[derive(Debug)]
 pub enum GameArgument {
     String(String),
@@ -662,7 +651,7 @@ pub enum GameArgument {
 ///  - Multiple (Multiple String)
 ///
 /// From piston-meta
-#[cfg_attr(feature="serde", derive(Serialize, Deserialize), serde(untagged))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(untagged))]
 #[derive(Debug)]
 pub enum ValueType {
     // Just like me
