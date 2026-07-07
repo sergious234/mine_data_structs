@@ -622,7 +622,7 @@ pub struct JavaVersion {
 #[derive(Debug)]
 pub struct Arguments {
     pub game: Box<[GameArgument]>,
-    jvm: Box<[GameArgument]>,
+    pub jvm: Box<[GameArgument]>,
 }
 
 /// This enum represent the 2 kinds of arguments that appears in piston-meta.
