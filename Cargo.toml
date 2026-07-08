@@ -16,6 +16,9 @@ indexmap = {version="2.10.0", features=["serde", "rayon"]}
 serde = { version = "^1", features = ["derive"], optional=true }
 serde_json = { version = "^1", default-features = false, features = ["alloc", "std"], optional=true}
 
+[dev-dependencies]
+serde_json = { version = "^1", default-features = false, features = ["alloc", "std"] }
+
 [features]
 default = []
 serde = ["dep:serde", "dep:serde_json"]

@@ -1,5 +1,4 @@
-//! This module contains all relevant data structs for downloading/launching
-//! minecraft.
+//! This module contains all relevant data structs for downloading/launching minecraft.
 //!
 //! Also some QoL getters are provided for `strings` which you may get
 //! by modifying fields of the desired struct.
@@ -22,6 +21,7 @@
 
 use std::{
     collections::HashMap,
+    fmt::Display,
     path::{Path, PathBuf},
 };
 
@@ -213,7 +213,7 @@ pub struct Latest {
 ///
 /// This struct represents the folowing `JSON` from piston-meta:
 ///
-///```json
+/// ```json
 /// {
 /// "downloads": {
 ///   "artifact": {
@@ -246,7 +246,7 @@ impl Library {
     pub fn get_os(&self) -> Option<Os> {
         self.rules
             .as_ref()
-            .and_then(|r| r.iter().find(|x| x.os.is_some()).unwrap().os)
+            .and_then(|r| r.iter().find(|x| x.os.is_some()).unwrap().os.clone())
     }
 
     pub fn get_url(&self) -> &str {
@@ -259,6 +259,50 @@ impl Library {
 
     pub fn get_hash(&self) -> Option<&str> {
         self.downloads.as_ref().map(|ld| ld.artifact.sha1.as_str())
+    }
+
+    pub fn get_os_classifier(&self) -> Option<&Artifact> {
+        if let Some(downloads) = &self.downloads {
+            if let Some(classif) = &downloads.classifiers {
+                return match std::env::consts::OS {
+                    "linux" => classif.natives_linux.as_ref(),
+                    "windows" => classif.natives_windows.as_ref(),
+                    "osx" => classif.natives_macos.as_ref(),
+                    _ => None
+                }
+            }
+            return None
+        }
+        None
+    }
+
+    /// Whether the library should be used on the current OS.
+    ///
+    /// Rules are evaluated with **last‑match‑wins** semantics: the last rule
+    /// whose OS constraint matches the current environment decides.
+    /// If no rule matches, the library **applies** (default `true`).
+    ///
+    /// This is *not* the same as `rules.iter().all(Rule::applies)` —
+    /// [`Rule::applies`] answers per‑rule, but multiple `allow` rules for
+    /// different OSes must be combined with last‑match‑wins, not `all`.
+    pub fn applies(&self) -> bool {
+        let Some(rules) = &self.rules else {
+            return true;
+        };
+
+        let mut result = true;
+        for rule in rules.iter() {
+            let os_match = rule.matches_os();
+
+            if rule.action == "disallow" && os_match {
+                return false;
+            }
+
+            if rule.action == "allow" {
+                result = os_match;
+            }
+        }
+        result
     }
 }
 
@@ -666,17 +710,104 @@ pub enum ValueType {
 #[derive(Debug)]
 pub struct Rule {
     pub action: String,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub os: Option<Os>,
 }
 
-/// Enum which contains the differents Osssssssssss.
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(tag = "name"))]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum Os {
-    #[cfg_attr(feature = "serde", serde(rename = "linux"))]
+impl Rule {
+    /// Whether this single rule permits the library on the current OS.
+    ///
+    /// - `allow` + matching OS → `true`
+    /// - `allow` + non‑matching OS → `false`
+    /// - `allow` + no OS → `true` (matches everything)
+    /// - `disallow` + matching OS → `false`
+    /// - `disallow` + non‑matching OS → `true`
+    /// - `disallow` + no OS → `false` (blocks everything)
+    pub fn applies(&self) -> bool {
+        let os_match = self.matches_os();
+        if self.action == "disallow" {
+            !os_match
+        } else {
+            os_match
+        }
+    }
+
+    fn matches_os(&self) -> bool {
+        match &self.os {
+            None => true,
+            Some(os) => {
+                let s = os.to_string();
+                s == std::env::consts::OS
+                    || (s == "osx" && std::env::consts::OS == "macos")
+            }
+        }
+    }
+}
+
+/// OS constraint from a Minecraft rule.
+///
+/// Captures the `os` object inside a rule, which may contain a `name` (e.g.
+/// `"linux"`, `"windows"`, `"osx"`) and/or an `arch` (e.g. `"x86"`).
+///
+/// When `name` is `None` the constraint is treated as matching any OS — this
+/// is relevant for the [`Display`] impl which falls back to `"other"` when
+/// no known name is set, preserving the old `Os::Other` behaviour.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(default))]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct Os {
+    /// OS family name (`"linux"`, `"windows"`, `"osx"`, …).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub name: Option<OsName>,
+
+    /// CPU architecture (`"x86"`, `"aarch64"`, …).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub arch: Option<Arch>,
+}
+
+impl Display for Os {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.name {
+            Some(OsName::Linux) => f.write_str("linux"),
+            Some(OsName::Windows) => f.write_str("windows"),
+            Some(OsName::Osx) => f.write_str("osx"),
+            _ => f.write_str("other"),
+        }
+    }
+}
+
+/// Known OS family names used in Minecraft rules.
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(rename_all = "lowercase")
+)]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub enum OsName {
     Linux,
-    #[cfg_attr(feature = "serde", serde(rename = "windows"))]
     Windows,
+    Osx,
+    #[default]
+    #[cfg_attr(feature = "serde", serde(other))]
+    Other,
+}
+
+/// Known CPU architectures used in Minecraft rules.
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(rename_all = "lowercase")
+)]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub enum Arch {
+    X86,
+    Aarch64,
+    #[default]
     #[cfg_attr(feature = "serde", serde(other))]
     Other,
 }
@@ -696,6 +827,7 @@ pub enum Os {
 #[derive(Debug)]
 pub struct LibraryDownloads {
     pub artifact: Artifact,
+    pub classifiers: Option<Classifiers>,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -705,6 +837,22 @@ pub struct Artifact {
     pub sha1: String,
     pub size: u64,
     pub url: String,
+}
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug)]
+pub struct Classifiers {
+    // #[serde(rename = "natives-linux")]
+    #[cfg_attr(feature = "serde", serde(rename = "natives-linux"))]
+    pub natives_linux: Option<Artifact>,
+
+    // #[serde(rename = "natives-windows")]
+    #[cfg_attr(feature = "serde", serde(rename = "natives-windows"))]
+    pub natives_windows: Option<Artifact>,
+
+    // #[serde(rename = "natives-macos")]
+    #[cfg_attr(feature = "serde", serde(rename = "natives-macos"))]
+    pub natives_macos: Option<Artifact>,
 }
 
 /// Returns `Some(.minecraft path)` on success, otherwise `None`.
@@ -743,9 +891,6 @@ pub const RUNTIMES_URL: &str = "https://launchermeta.mojang.com/v1/products/java
 
 /// Fancy name for String
 pub type RuntimeName = String;
-
-/// Fancy name for String
-pub type OsName = String;
 
 /// Fancy name for `HashMap<RuntimeName, Box<[RuntimeData]>>`
 ///
