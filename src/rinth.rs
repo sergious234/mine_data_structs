@@ -15,7 +15,9 @@
 // This looks like an enum right ?
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
+
+use indexmap::IndexMap;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -542,9 +544,8 @@ pub struct Category {
 ///     ],
 ///
 ///     "dependencies": {
-///         RinthDep,
-///         RinthDep,
-///         ...
+///         "minecraft": "1.21",
+///         "fabric-loader": "0.16.9"
 ///     }
 /// }
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -556,6 +557,10 @@ pub struct RinthModpack {
     #[cfg_attr(feature = "serde", serde(rename = "versionId"))]
     pub version_id: String,
     pub name: PathBuf,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub summary: Option<String>,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub dependencies: IndexMap<String, String>,
     pub files: Vec<RinthMdFiles>,
 }
 
@@ -570,6 +575,8 @@ impl RinthModpack {
             game: "minecraft".to_string(),
             version_id,
             name,
+            summary: None,
+            dependencies: IndexMap::new(),
             files,
         }
     }
@@ -594,6 +601,21 @@ impl RinthModpack {
         self.files.push(new_mod);
     }
 
+    /// Pack name for display (from the manifest).
+    pub fn pack_name(&self) -> &str {
+        self.name.to_str().unwrap_or_default()
+    }
+
+    /// Files applying to `side` after `env` filtering.
+    pub fn files_for_side(&self, side: Side) -> impl Iterator<Item = &RinthMdFiles> {
+        self.files.iter().filter(move |f| f.matches_side(side))
+    }
+
+    /// Resolves the MC version and loader from `dependencies`.
+    pub fn meta(&self) -> PackMeta {
+        PackMeta::from_manifest(self)
+    }
+
     #[cfg(feature = "serde")]
     pub fn write_mod_pack_with_name(&self) -> std::io::Result<()> {
         let j = serde_json::to_string_pretty(self)?;
@@ -609,9 +631,145 @@ impl std::default::Default for RinthModpack {
             game: "minecraft".to_owned(),
             version_id: "0.0.0".to_owned(),
             name: "example".into(),
+            summary: None,
+            dependencies: IndexMap::new(),
             files: Vec::new(),
         }
     }
+}
+
+// ==================================
+// | Manifest side/env/loader types |
+// ==================================
+
+/// Install target: picks override folders and filters `files[].env`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Side {
+    #[default]
+    Client,
+    Server,
+}
+
+/// Per-side requirement from `files[].env` (`required` / `optional` /
+/// `unsupported`).
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(rename_all = "lowercase")
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SideRequirement {
+    #[default]
+    Required,
+    Optional,
+    Unsupported,
+}
+
+/// `env` block of a pack file; absent blocks mean required on both sides.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Env {
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub client: SideRequirement,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub server: SideRequirement,
+}
+
+/// Mod loader a pack depends on (from `dependencies` keys).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoaderKind {
+    Fabric,
+    Quilt,
+    Forge,
+    NeoForge,
+}
+
+/// Loader plus version a pack requires to launch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoaderRequirement {
+    pub loader: LoaderKind,
+    pub version: String,
+}
+
+/// Resolved install requirements: which MC version and which loader, if any.
+#[derive(Debug, Clone, Default)]
+pub struct PackMeta {
+    pub minecraft_version: Option<String>,
+    pub loader: Option<LoaderRequirement>,
+}
+
+impl Env {
+    /// Whether a file with this `env` installs on `side`.
+    pub fn allows(&self, side: Side) -> bool {
+        match side {
+            Side::Client => self.client != SideRequirement::Unsupported,
+            Side::Server => self.server != SideRequirement::Unsupported,
+        }
+    }
+}
+
+impl LoaderRequirement {
+    /// Detects the loader from `dependencies` (`fabric-loader`,
+    /// `quilt-loader`, `forge`, `neoforge`).
+    ///
+    /// Unknown dependency ids are ignored (the spec allows new ones at any
+    /// time). When several loaders are present the first match in that
+    /// priority order wins.
+    pub fn from_dependencies(deps: &IndexMap<String, String>) -> Option<Self> {
+        const PRIORITY: &[(&str, LoaderKind)] = &[
+            ("fabric-loader", LoaderKind::Fabric),
+            ("quilt-loader", LoaderKind::Quilt),
+            ("forge", LoaderKind::Forge),
+            ("neoforge", LoaderKind::NeoForge),
+        ];
+        PRIORITY.iter().find_map(|(key, loader)| {
+            deps.get(*key).map(|version| Self {
+                loader: *loader,
+                version: version.clone(),
+            })
+        })
+    }
+
+    /// Reads the `minecraft` version from `dependencies`.
+    pub fn minecraft_version(deps: &IndexMap<String, String>) -> Option<String> {
+        deps.get("minecraft").cloned()
+    }
+}
+
+impl PackMeta {
+    /// Resolves the MC version and loader from a manifest's `dependencies`.
+    pub fn from_manifest(manifest: &RinthModpack) -> Self {
+        Self {
+            minecraft_version: LoaderRequirement::minecraft_version(&manifest.dependencies),
+            loader: LoaderRequirement::from_dependencies(&manifest.dependencies),
+        }
+    }
+}
+
+/// Joins a pack-relative `rel` path onto the instance `dest`.
+///
+/// Returns `None` for paths escaping the instance, following the
+/// [spec](https://support.modrinth.com/en/articles/8802351-modrinth-modpack-format-mrpack):
+/// absolute paths, `..` components, drive prefixes (`X:`) and leading
+/// backslashes are rejected on every OS.
+pub fn join_inside(dest: &Path, rel: &Path) -> Option<PathBuf> {
+    if rel.is_absolute()
+        || rel.components().any(|c| matches!(c, Component::ParentDir))
+        || has_drive_prefix(rel)
+        || starts_with_backslash(rel)
+    {
+        return None;
+    }
+    Some(dest.join(rel))
+}
+
+fn has_drive_prefix(rel: &Path) -> bool {
+    let bytes = rel.as_os_str().as_encoded_bytes();
+    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+}
+
+fn starts_with_backslash(rel: &Path) -> bool {
+    rel.as_os_str().as_encoded_bytes().first() == Some(&b'\\')
 }
 
 /// This struct represent a mod inside the modrinth.index.json
@@ -641,6 +799,8 @@ pub struct RinthMdFiles {
     pub hashes: Hashes,
     pub downloads: Vec<String>,
     pub file_size: usize,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub env: Env,
 }
 
 impl From<RinthVersion> for RinthMdFiles {
@@ -650,6 +810,7 @@ impl From<RinthVersion> for RinthMdFiles {
             hashes: version.get_hashes().clone(),
             downloads: vec![version.get_file_url().to_string()],
             file_size: version.get_size(),
+            env: Env::default(),
         }
     }
 }
@@ -661,6 +822,7 @@ impl From<RinthVersionFile> for RinthMdFiles {
             hashes: version.files[0].hashes.clone(),
             downloads: vec![version.files[0].url.to_string()],
             file_size: version.files[0].size,
+            env: Env::default(),
         }
     }
 }
@@ -668,6 +830,16 @@ impl From<RinthVersionFile> for RinthMdFiles {
 impl RinthMdFiles {
     pub fn get_download_link(&self) -> &str {
         &self.downloads[0]
+    }
+
+    /// First download URL, if the entry declares any.
+    pub fn download_link(&self) -> Option<&str> {
+        self.downloads.first().map(String::as_str)
+    }
+
+    /// Whether this file installs on `side` per its `env` block.
+    pub fn matches_side(&self, side: Side) -> bool {
+        self.env.allows(side)
     }
 
     pub fn get_id(&self) -> Option<&str> {
@@ -750,4 +922,110 @@ pub fn load_rinth_pack<I: AsRef<Path>>(pack_path: I) -> Option<RinthModpack> {
         .map(|s| serde_json::from_str(&s).ok())
         .ok()
         .flatten()
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod tests {
+    use super::*;
+
+    type TestResult<T> = core::result::Result<T, Box<dyn std::error::Error>>;
+
+    const SAMPLE: &str = r#"{
+        "formatVersion": 1,
+        "game": "minecraft",
+        "versionId": "1.0.0",
+        "name": "Sample",
+        "summary": "A sample pack",
+        "dependencies": {
+            "minecraft": "1.21",
+            "fabric-loader": "0.16.9"
+        },
+        "files": [
+            {
+                "path": "mods/a.jar",
+                "hashes": {"sha1": "aaa", "sha512": "aaa512"},
+                "downloads": ["https://example.com/a.jar"],
+                "fileSize": 10,
+                "env": {"client": "required", "server": "unsupported"}
+            },
+            {
+                "path": "mods/b.jar",
+                "hashes": {"sha1": "bbb", "sha512": "bbb512"},
+                "downloads": ["https://example.com/b.jar"],
+                "fileSize": 20
+            }
+        ]
+    }"#;
+
+    fn sample() -> TestResult<RinthModpack> {
+        Ok(serde_json::from_str(SAMPLE)?)
+    }
+
+    #[test]
+    fn parses_dependencies_summary_and_env() -> TestResult<()> {
+        let m = sample()?;
+        assert_eq!(m.dependencies.get("minecraft").map(String::as_str), Some("1.21"));
+        assert_eq!(m.summary.as_deref(), Some("A sample pack"));
+        assert_eq!(
+            m.files.first().ok_or("should have a file")?.env.server,
+            SideRequirement::Unsupported
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn missing_env_defaults_to_required() -> TestResult<()> {
+        let b = sample()?.files.into_iter().nth(1).ok_or("should have two files")?;
+        assert!(b.matches_side(Side::Client) && b.matches_side(Side::Server));
+        Ok(())
+    }
+
+    #[test]
+    fn env_filters_per_side() -> TestResult<()> {
+        let m = sample()?;
+        assert_eq!(m.files_for_side(Side::Client).count(), 2);
+        assert_eq!(m.files_for_side(Side::Server).count(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_meta_and_loader() -> TestResult<()> {
+        let meta = sample()?.meta();
+        assert_eq!(meta.minecraft_version.as_deref(), Some("1.21"));
+        let loader = meta.loader.ok_or("should have a loader")?;
+        assert_eq!(loader.loader, LoaderKind::Fabric);
+        assert_eq!(loader.version, "0.16.9");
+        Ok(())
+    }
+
+    #[test]
+    fn loader_priority_prefers_fabric() -> TestResult<()> {
+        let deps = IndexMap::from([
+            ("forge".to_owned(), "47.0.0".to_owned()),
+            ("fabric-loader".to_owned(), "0.16.9".to_owned()),
+        ]);
+        let loader = LoaderRequirement::from_dependencies(&deps).ok_or("should detect a loader")?;
+        assert_eq!(loader.loader, LoaderKind::Fabric);
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_dependency_ids_are_ignored() -> TestResult<()> {
+        let deps = IndexMap::from([("future-loader".to_owned(), "9.9".to_owned())]);
+        assert!(LoaderRequirement::from_dependencies(&deps).is_none());
+        assert!(LoaderRequirement::minecraft_version(&deps).is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn join_inside_rejects_escapes() -> TestResult<()> {
+        let dest = Path::new("/instance");
+        assert!(join_inside(dest, Path::new("/abs.jar")).is_none());
+        assert!(join_inside(dest, Path::new("../evil.jar")).is_none());
+        assert!(join_inside(dest, Path::new("C:/evil.jar")).is_none());
+        assert!(join_inside(dest, Path::new("C:\\evil.jar")).is_none());
+        assert!(join_inside(dest, Path::new("\\evil.jar")).is_none());
+        assert!(join_inside(dest, Path::new("mods/a.jar")).is_some());
+        Ok(())
+    }
 }

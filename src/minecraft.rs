@@ -925,7 +925,8 @@ pub type FileRelPath = PathBuf;
 ///    windows-arm64 {…}
 ///    windows-x64 {…}
 ///    windows-x86 {…}
-/// }```
+/// }
+/// ```
 ///
 ///
 /// Right now only linux, mac-os and windows-x64 are supported and the field
